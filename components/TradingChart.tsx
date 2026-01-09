@@ -67,7 +67,7 @@ export const TradingChart = ({ data }: TradingChartProps) => {
                 },
             },
             width: chartContainerRef.current.clientWidth,
-            height: 350,
+            height: chartContainerRef.current.clientHeight,
             handleScale: {
                 mouseWheel: false,
             },
@@ -129,15 +129,24 @@ export const TradingChart = ({ data }: TradingChartProps) => {
                         <div class="text-sm font-mono font-bold text-foreground">$${Number(price).toFixed(6)}</div>
                     `;
 
-                    const coordinate = newSeries.priceToCoordinate(price);
-                    let shiftedX = param.point.x - 60;
-                    let shiftedY = (coordinate ?? param.point.y) - 60;
+                    const containerW = chartContainerRef.current?.clientWidth ?? 0;
+                    const containerH = chartContainerRef.current?.clientHeight ?? 0;
 
-                    if (shiftedX < 0) shiftedX = 5;
-                    if (shiftedY < 0) shiftedY = 5;
+                    let left = param.point.x + 15;
+                    let top = param.point.y + 15;
 
-                    toolTip.style.left = shiftedX + 'px';
-                    toolTip.style.top = shiftedY + 'px';
+                    if (left + 150 > containerW) {
+                        left = param.point.x - 155;
+                    }
+                    if (top + 80 > containerH) {
+                        top = param.point.y - 85;
+                    }
+
+                    if (left < 0) left = 0;
+                    if (top < 0) top = 0;
+
+                    toolTip.style.left = left + 'px';
+                    toolTip.style.top = top + 'px';
                 }
             });
         }
@@ -152,18 +161,26 @@ export const TradingChart = ({ data }: TradingChartProps) => {
     }, [data, resolvedTheme]);
 
     return (
-        <div className="relative w-full h-[350px]">
-            <div ref={chartContainerRef} className="w-full h-full" />
+        <div className="relative w-full h-[350px] overflow-visible" style={{ zoom: 1.25 }}>
             <div
-                ref={tooltipRef}
-                className="absolute hidden pointer-events-none bg-background border border-border/50 rounded-lg p-3 shadow-lg z-10 transition-opacity duration-100"
+                className="relative"
                 style={{
-                    width: '140px',
-                    height: 'auto',
-                    top: 0,
-                    left: 0,
+                    width: '80%',
+                    height: '80%'
                 }}
-            />
+            >
+                <div ref={chartContainerRef} className="w-full h-full" />
+                <div
+                    ref={tooltipRef}
+                    className="absolute hidden pointer-events-none bg-background border border-border/50 rounded-lg p-3 shadow-lg z-10 transition-opacity duration-100"
+                    style={{
+                        width: '140px',
+                        height: 'auto',
+                        top: 0,
+                        left: 0,
+                    }}
+                />
+            </div>
         </div>
     );
 };
