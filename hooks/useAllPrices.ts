@@ -20,9 +20,7 @@ export const useAllPrices = (publicClient: PublicClient | undefined) => {
     if (!publicClient) return;
 
     const load = async () => {
-      const out: Record<string, number> = {};
-
-      for (const key of Object.keys(MARKETS) as MarketKey[]) {
+      const promises = (Object.keys(MARKETS) as MarketKey[]).map(async (key) => {
         const { asset, pyth } = MARKETS[key];
 
         try {
@@ -33,12 +31,19 @@ export const useAllPrices = (publicClient: PublicClient | undefined) => {
             args: [pyth],
           });
 
-          out[asset] = Number(price) / 1e18;
+          return { asset, price: Number(price) / 1e18 };
         } catch (e) {
           console.error("price error", key, e);
-          out[asset] = 0;
+          return { asset, price: 0 };
         }
-      }
+      });
+
+      const results = await Promise.all(promises);
+      const out: Record<string, number> = {};
+
+      results.forEach(({ asset, price }) => {
+        out[asset] = price;
+      });
 
       setPrices(out);
     };

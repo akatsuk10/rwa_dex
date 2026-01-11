@@ -30,11 +30,9 @@ export const useAllPositions = (
 
   const reload = useCallback(async () => {
     if (!user || !publicClient) return;
-    if (Object.keys(allPrices).length === 0) return; 
+    if (Object.keys(allPrices).length === 0) return;
 
-    const out: FullPosition[] = [];
-
-    for (const m of Object.values(MARKETS)) {
+    const promises = Object.values(MARKETS).map(async (m) => {
       const asset = m.asset;
 
       try {
@@ -46,10 +44,10 @@ export const useAllPositions = (
         });
 
         const [size, entryPrice, margin] = raw as [bigint, bigint, bigint];
-        if (size === BigInt(0)) continue;
+        if (size === BigInt(0)) return null;
 
         const price = allPrices[asset] ?? 0;
-        if (!price) continue; // ❗ avoid wrong PnL & lev
+        if (!price) return null;
 
         const abs = size < 0 ? -size : size;
         const absSize = Number(ethers.formatUnits(abs, 18));
@@ -61,16 +59,20 @@ export const useAllPositions = (
         const pnl = (price - entry) * absSize * (side === "LONG" ? 1 : -1);
         const lev = marginUsd > 0 ? (absSize * price) / marginUsd : 0;
 
-        out.push({
+        return {
           market: m.name,
           asset,
           rawSize: size,
           decoded: { side, absSize, entry, marginUsd, pnl, lev },
-        });
+        };
       } catch (err) {
-        console.error("❌ Position error:", m.name, err);
+        console.error("Position error:", m.name, err);
+        return null;
       }
-    }
+    });
+
+    const results = await Promise.all(promises);
+    const out = results.filter((p): p is FullPosition => p !== null);
 
     setPositions(out);
     setInitialLoad(false);

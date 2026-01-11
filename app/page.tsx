@@ -82,42 +82,43 @@ export default function Home() {
             <span className="text-muted-foreground"> Perpetuals</span>
           </h1>
         </motion.div>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 w-full lg:w-[850px]">
+          <div className="flex gap-2 flex-wrap">
+            {Object.keys(MARKETS).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMarket(m as MarketKey)}
+                className={`px-3 py-1 rounded-md text-sm font-mono border cursor-pointer ${market === m
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-muted-foreground hover:border-border"
+                  }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
 
-        <div className="flex gap-3">
-          {Object.keys(MARKETS).map((m) => (
+          <div className="flex gap-2">
             <button
-              key={m}
-              onClick={() => setMarket(m as MarketKey)}
-              className={`px-3 py-1 rounded-md font-mono border cursor-pointer ${market === m
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-background text-muted-foreground hover:border-border"
+              onClick={() => setActiveTab("market")}
+              className={`px-4 py-1.5 border rounded-lg text-sm font-mono cursor-pointer ${activeTab === "market" ? "bg-primary text-white dark:text-black" : "text-muted-foreground"
                 }`}
             >
-              {m}
+              Market
             </button>
-          ))}
+
+            <button
+              onClick={() => setActiveTab("positions")}
+              className={`px-4 py-1.5 border rounded-lg text-sm font-mono cursor-pointer ${activeTab === "positions" ? "bg-primary text-white dark:text-black" : "text-muted-foreground"
+                }`}
+            >
+              Positions
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8">
-            <div className="flex gap-2 mb-6">
-              <button
-                onClick={() => setActiveTab("market")}
-                className={`px-4 py-1.5 border rounded-lg text-sm font-mono cursor-pointer ${activeTab === "market" ? "bg-primary text-white dark:text-black" : "text-muted-foreground"
-                  }`}
-              >
-                Market
-              </button>
-
-              <button
-                onClick={() => setActiveTab("positions")}
-                className={`px-4 py-1.5 border rounded-lg text-sm font-mono cursor-pointer ${activeTab === "positions" ? "bg-primary text-white dark:text-black" : "text-muted-foreground"
-                  }`}
-              >
-                Positions
-              </button>
-            </div>
-
             <AnimatePresence mode="wait">
               {activeTab === "market" ? (
                 <motion.div key="market" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -136,11 +137,10 @@ export default function Home() {
                       <button
                         key={tf}
                         onClick={() => setTimeframe(tf)}
-                        className={`px-3 py-1 rounded-md text-xs font-mono border cursor-pointer ${
-                          timeframe === tf
+                        className={`px-3 py-1 rounded-md text-xs font-mono border cursor-pointer ${timeframe === tf
                             ? "bg-primary text-primary-foreground border-primary"
                             : "bg-background text-muted-foreground hover:border-border"
-                        }`}
+                          }`}
                       >
                         {tf}
                       </button>
