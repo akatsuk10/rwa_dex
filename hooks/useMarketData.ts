@@ -8,6 +8,7 @@ export const useMarketData = (
   const [price, setPrice] = useState<number | null>(null);
   const [ohlcData, setOhlcData] = useState<any[]>([]);
   const [priceChange, setPriceChange] = useState<number | null>(null);
+  const [marketCap, setMarketCap] = useState<number | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -28,6 +29,18 @@ export const useMarketData = (
 
           setPriceChange(((close - open) / open) * 100);
         }
+
+        const cgId = MARKETS[market].coingecko;
+        const cgRes = await fetch(
+          `https://api.coingecko.com/api/v3/coins/${cgId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`
+        );
+        const cgData = await cgRes.json();
+
+        if (cgData?.market_data?.fully_diluted_valuation?.usd) {
+          setMarketCap(cgData.market_data.fully_diluted_valuation.usd);
+        } else if (cgData?.market_data?.market_cap?.usd) {
+          setMarketCap(cgData.market_data.market_cap.usd);
+        }
       } catch (err) {
         console.error("market data", err);
       }
@@ -38,5 +51,5 @@ export const useMarketData = (
     return () => clearInterval(h);
   }, [market]);
 
-  return { price, ohlcData, priceChange, marketCap: null };
+  return { price, ohlcData, priceChange, marketCap };
 };
