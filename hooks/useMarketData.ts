@@ -1,56 +1,42 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { MARKETS, type MarketKey } from "@/lib/markets";
 import { type Time } from "lightweight-charts";
 
-type OHLCData = {
-  time: Time;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-};
-
-export const useMarketData = (timeframe: "15m" | "30m" | "24h" | "7d") => {
+export const useMarketData = (
+  market: MarketKey,
+) => {
   const [price, setPrice] = useState<number | null>(null);
+  const [ohlcData, setOhlcData] = useState<any[]>([]);
   const [priceChange, setPriceChange] = useState<number | null>(null);
-  const [marketCap, setMarketCap] = useState<number | null>(null);
-  const [ohlcData, setOhlcData] = useState<OHLCData[]>([]);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const load = async () => {
       try {
-        const days = timeframe === "7d" ? 7 : 1;
+        const feed = MARKETS[market].pyth.replace("0x", "");
 
-        const priceRes = await axios.get(
-          "https://api.coingecko.com/api/v3/simple/price?ids=tether-gold&vs_currencies=usd&include_market_cap=true&include_24hr_change=true"
-        );
-        const data = priceRes.data["tether-gold"];
-        setPrice(data.usd);
-        setPriceChange(data.usd_24h_change);
-        setMarketCap(data.usd_market_cap);
+        const res = await fetch(`/api/market/${feed}?tf=24h`);
+        const json = await res.json();
 
-        const ohlcRes = await axios.get(
-          `https://api.coingecko.com/api/v3/coins/tether-gold/ohlc?vs_currency=usd&days=${days}`
-        );
+        setPrice(json.price);
 
-        const formattedData = ohlcRes.data.map((d: number[]) => ({
-          time: Math.floor(d[0] / 1000) as Time,
-          open: d[1],
-          high: d[2],
-          low: d[3],
-          close: d[4],
-        }));
+        const arr = json.ohlc || [];
+        setOhlcData(arr);
 
-        setOhlcData(formattedData);
-      } catch (e) {
-        console.error("Market data fetch failed", e);
+        if (arr.length > 1) {
+          const open = arr[0].open;
+          const close = arr[arr.length - 1].close;
+
+          setPriceChange(((close - open) / open) * 100);
+        }
+      } catch (err) {
+        console.error("market data", err);
       }
     };
 
-    fetchData();
-    const interval = setInterval(fetchData, 60000);
-    return () => clearInterval(interval);
-  }, [timeframe]);
+    load();
+    const h = setInterval(load, 30_000);
+    return () => clearInterval(h);
+  }, [market]);
 
-  return { price, priceChange, marketCap, ohlcData };
+  return { price, ohlcData, priceChange, marketCap: null };
 };

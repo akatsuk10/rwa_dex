@@ -91,10 +91,13 @@ export const TradingChart = ({ data }: TradingChartProps) => {
             lastValueVisible: true,
         });
 
-        const lineData = data.map(d => ({
-            time: d.time,
-            value: d.close
-        }));
+        const lineData = data
+            .filter(d => d && d.time && d.close !== undefined)
+            .map(d => ({
+                time: d.time,
+                value: d.close,
+            }));
+
 
         newSeries.setData(lineData);
         chart.timeScale().fitContent();

@@ -3,49 +3,45 @@
 import { useState } from "react";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { motion, AnimatePresence } from "framer-motion";
-import { Skeleton } from "@/components/ui/skeleton";
+
+import { MARKETS, MarketKey } from "@/lib/markets";
 import { TradingChart } from "@/components/TradingChart";
 import { Navbar } from "@/components/Navbar";
 import { MarketHeader } from "@/components/MarketHeader";
 import { MarketStats } from "@/components/MarketStats";
 import { PositionCard } from "@/components/PositionCard";
 import { TradePanel } from "@/components/TradePanel";
+
 import { useMarketData } from "@/hooks/useMarketData";
-import { usePosition } from "@/hooks/usePosition";
+import { useAllPrices } from "@/hooks/useAllPrices";
+import { useAllPositions } from "@/hooks/useAllPositions";
 import { useTrade } from "@/hooks/useTrade";
-import { Activity } from "lucide-react";
+
+import { Skeleton } from "@/components/ui/skeleton";
+import { Activity, Loader2 } from "lucide-react";
 
 const MAX_LEVERAGE = 10;
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-};
 
 export default function Home() {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
 
-  const [timeframe, setTimeframe] = useState<"15m" | "30m" | "24h" | "7d">("24h");
+  const [market, setMarket] = useState<MarketKey>("XAUT");
   const [activeTab, setActiveTab] = useState<"market" | "positions">("market");
+
   const [margin, setMargin] = useState("1");
   const [leverage, setLeverage] = useState(3);
-  const [closePercent, setClosePercent] = useState(100);
 
-  const { price, priceChange, marketCap, ohlcData } = useMarketData(timeframe);
-  const { position, decoded, loadPosition } = usePosition(address, publicClient, price);
-  const { loading, openPosition, closePosition } = useTrade(loadPosition);
+  const { price, priceChange, marketCap, ohlcData } = useMarketData(market);
+
+  const allPrices = useAllPrices(publicClient);
+  const pricesReady = Object.keys(allPrices).length > 0;
+
+  const { positions: allPositions, initialLoad, reload } =
+    useAllPositions(address, publicClient, allPrices, activeTab);
+
+  const { loading, openPosition, closePosition } = useTrade(reload);
 
   const marginNum = Number(margin) || 0;
   const notional = price ? marginNum * leverage : 0;
@@ -60,157 +56,142 @@ export default function Home() {
     !loading;
 
   const handleOpenLong = () => {
-    if (!canTrade || !walletClient || !price) return;
-    openPosition(walletClient, true, size, margin);
+    if (!canTrade || !walletClient) return;
+    openPosition(walletClient, MARKETS[market].asset, true, size, margin);
   };
 
   const handleOpenShort = () => {
-    if (!canTrade || !walletClient || !price) return;
-    openPosition(walletClient, false, size, margin);
+    if (!canTrade || !walletClient) return;
+    openPosition(walletClient, MARKETS[market].asset, false, size, margin);
   };
 
-  const handleClose = () => {
-    if (!position || !walletClient) return;
-    closePosition(walletClient, position, closePercent);
+  const handleClose = async (asset: `0x${string}`, pct: number, rawSize: bigint) => {
+    if (!walletClient) return;
+    await closePosition(walletClient, asset, rawSize, pct);
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/10 mt-10">
+    <div className="min-h-screen bg-background text-foreground mt-10">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
-          <h1 className="text-2xl sm:text-2xl font-extrabold tracking-tight lg:text-2xl text-primary">
-            Trade Gold <span className="text-muted-foreground">On-Chain</span>
+      <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <h1 className="text-2xl font-extrabold text-primary">
+            Trade {MARKETS[market].name}
+            <span className="text-muted-foreground"> Perpetuals</span>
           </h1>
-          <p className="max-w-2xl text-lg text-muted-foreground leading-relaxed">
-            Perpetual futures for Tether Gold (XAUT). Up to 10x leverage. Zero price impact.
-          </p>
         </motion.div>
 
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-1 lg:grid-cols-12 gap-8"
-        >
-          <div className="lg:col-span-8 space-y-0">
-            <div className="flex items-center gap-2 mb-10">
+        <div className="flex gap-3">
+          {Object.keys(MARKETS).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMarket(m as MarketKey)}
+              className={`px-3 py-1 rounded-md font-mono border ${market === m
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-muted-foreground hover:border-border"
+                }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-8">
+            <div className="flex gap-2 mb-6">
               <button
                 onClick={() => setActiveTab("market")}
-                className={`px-4 py-1.5 text-sm font-mono rounded-lg border transition-all ${activeTab === "market"
-                    ? "bg-primary text-primary-foreground border-primary font-medium shadow-sm"
-                    : "bg-background text-muted-foreground border-border/60 hover:border-border hover:text-foreground transition-colors cursor-pointer"
+                className={`px-4 py-1.5 border rounded-lg text-sm font-mono ${activeTab === "market" ? "bg-primary text-white" : "text-muted-foreground"
                   }`}
               >
-                Overview
+                Market
               </button>
+
               <button
                 onClick={() => setActiveTab("positions")}
-                className={`px-4 py-1.5 text-sm font-mono rounded-lg border transition-all ${activeTab === "positions"
-                    ? "bg-primary text-primary-foreground border-primary font-medium shadow-sm"
-                    : "bg-background text-muted-foreground border-border/60 hover:border-border hover:text-foreground transition-colors cursor-pointer"
+                className={`px-4 py-1.5 border rounded-lg text-sm font-mono ${activeTab === "positions" ? "bg-primary text-white" : "text-muted-foreground"
                   }`}
               >
-                Position
+                Positions
               </button>
             </div>
 
-            <div className="min-h-[600px]">
-              <AnimatePresence mode="wait">
-                {activeTab === "market" ? (
-                  <motion.div
-                    key="market"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 10 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <MarketHeader price={price} priceChange={priceChange} marketCap={marketCap} />
+            <AnimatePresence mode="wait">
+              {activeTab === "market" ? (
+                <motion.div key="market" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <MarketHeader price={price} priceChange={priceChange} marketCap={marketCap} />
 
-                    <div className="mb-8 mt-6">
-                      {ohlcData.length > 0 ? (
-                        <TradingChart data={ohlcData} />
-                      ) : (
-                        <div className="h-[350px] flex items-center justify-center text-muted-foreground border border-dashed border-border/50 rounded-lg">
-                          <div className="flex flex-col items-center gap-2">
-                            <Skeleton className="h-12 w-12 rounded-full" />
-                            <span className="text-xs font-mono lowercase">loading data...</span>
-                          </div>
-                        </div>
-                      )}
+                  {ohlcData.length ? (
+                    <TradingChart data={ohlcData} />
+                  ) : (
+                    <div className="h-[350px] flex items-center justify-center border border-dashed rounded-lg">
+                      <Skeleton className="w-10 h-10" />
                     </div>
+                  )}
 
-                    <div className="flex justify-center mb-10">
-                      <div className="bg-muted/30 p-1 rounded-lg flex items-center gap-1">
-                        {(["15m", "30m", "24h", "7d"] as const).map((tf) => (
-                          <button
-                            key={tf}
-                            onClick={() => setTimeframe(tf)}
-                            className={`px-4 py-1.5 rounded-md text-sm font-mono transition-all ${timeframe === tf
-                              ? "bg-background shadow-sm text-foreground font-medium"
-                              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-                              }`}
-                          >
-                            {tf}
-                          </button>
-                        ))}
-                      </div>
+                  <MarketStats
+                    price={price}
+                    priceChange={priceChange}
+                    marketCap={marketCap}
+                    market={market}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div key="positions">
+
+                  {(!pricesReady || initialLoad) && (
+                    <div className="flex flex-col items-center h-[300px] justify-center text-muted-foreground">
+                      <Loader2 className="w-8 h-8 animate-spin" />
+                      <p className="mt-4">Loading prices…</p>
                     </div>
+                  )}
 
-                    <MarketStats price={price} priceChange={priceChange} marketCap={marketCap} />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="positions"
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className="h-full"
-                  >
-                    {decoded ? (
-                      <PositionCard
-                        decoded={decoded}
-                        closePercent={closePercent}
-                        setClosePercent={setClosePercent}
-                        onClose={handleClose}
-                        loading={loading}
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground">
-                        <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-                          <Activity className="w-8 h-8 opacity-40" />
-                        </div>
-                        <p className="text-lg font-medium">No active positions</p>
-                        <p className="text-sm">Open a trade to see it here.</p>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                  {pricesReady && !initialLoad && allPositions.length === 0 && (
+                    <div className="flex flex-col items-center h-[300px] justify-center text-muted-foreground">
+                      <Activity className="w-10 h-10 opacity-30" />
+                      <p className="mt-4">No open positions</p>
+                    </div>
+                  )}
+
+                  {pricesReady && !initialLoad && allPositions.length > 0 && (
+                    <div className="space-y-6">
+                      {allPositions.map((pos, i) => (
+                        <PositionCard
+                          key={i}
+                          marketName={pos.market}
+                          asset={pos.asset}
+                          decoded={pos.decoded}
+                          rawSize={pos.rawSize}
+                          onClose={handleClose}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          <div className="lg:col-span-4 space-y-6">
-            <motion.div variants={itemVariants} className="sticky top-24">
-              <TradePanel
-                margin={margin}
-                setMargin={setMargin}
-                leverage={leverage}
-                setLeverage={setLeverage}
-                size={size}
-                notional={notional}
-                price={price}
-                canTrade={canTrade}
-                isConnected={isConnected}
-                loading={loading}
-                onOpenLong={handleOpenLong}
-                onOpenShort={handleOpenShort}
-              />
-            </motion.div>
+          <div className="lg:col-span-4">
+            <TradePanel
+              market={market}
+              margin={margin}
+              setMargin={setMargin}
+              leverage={leverage}
+              setLeverage={setLeverage}
+              size={size}
+              notional={notional}
+              price={price}
+              canTrade={canTrade}
+              isConnected={isConnected}
+              loading={loading}
+              onOpenLong={handleOpenLong}
+              onOpenShort={handleOpenShort}
+            />
           </div>
-        </motion.div>
+        </div>
       </main>
     </div>
   );
